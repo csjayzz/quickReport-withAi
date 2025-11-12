@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quick Report - Incident Reporting</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow-x: hidden;
+            height: 100vh;
+            position: relative;
+            touch-action: manipulation;
+        }
+
+        #app {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            z-index: 100;
+            position: relative;
+        }
+
+        header h1 {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        header .subtitle {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+            font-weight: 500;
+        }
+
+        #camera-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #captured-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        #permission-prompt {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            z-index: 10;
+        }
+
+        #permission-prompt.hidden {
+            display: none;
+        }
+
+        .permission-content {
+            text-align: center;
+            padding: 40px 30px;
+            max-width: 400px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .permission-icon {
+            font-size: 90px;
+            margin-bottom: 25px;
+            animation: pulse 2s infinite;
+            filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5));
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.15); opacity: 0.85; }
+        }
+
+        .permission-content h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+        }
+
+        .permission-content p {
+            line-height: 1.8;
+            margin-bottom: 30px;
+            color: #b8b8d1;
+            font-size: 16px;
+        }
+
+        #enable-camera-btn {
+            padding: 20px 50px;
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        #enable-camera-btn:active {
+            transform: scale(0.92);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.6);
+        }
+
+        #fallback-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 35px;
+            background: rgba(255, 70, 70, 0.15);
+            border: 2px solid #ff6b6b;
+            border-radius: 20px;
+            max-width: 85%;
+            z-index: 20;
+            backdrop-filter: blur(15px);
+        }
+
+        #fallback-message h2 {
+            color: #ff6b6b;
+            margin-bottom: 15px;
+            font-size: 22px;
+        }
+
+        #fallback-message p {
+            line-height: 1.7;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        #fallback-message button {
+            margin-top: 20px;
+            padding: 14px 30px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: transform 0.2s;
+        }
+
+        #fallback-message button:active {
+            transform: scale(0.95);
+        }
+
+        #controls {
+            padding: 25px 20px 30px;
+            background: linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%);
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.5);
+        }
+        
+        /* NEW STYLING FOR AI BUTTON */
+        #ai-instructions-btn {
+            width: 100%;
+            padding: 24px;
+            font-size: 20px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a269f5 0%, #764ba2 100%); /* Purple/Violet Gradient */
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 25px rgba(162, 105, 245, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            touch-action: manipulation;
+            user-select: none;
+            margin-bottom: 15px; /* Spacing below recapture btn */
+        }
+
+        #ai-instructions-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 15px rgba(162, 105, 245, 0.6);
+        }
+
+        #ai-instructions-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        /* END NEW STYLING */
+
+        #capture-btn {
+            width: 100%;
+            padding: 24px;
+            font-size: 20px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        #capture-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.6);
+        }
+
+        #capture-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #emergency-controls {
+            display: none;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        #emergency-controls.active {
+            display: flex;
+            animation: slideUp 0.4s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .emergency-btn {
+            flex: 1;
+            padding: 22px 10px;
+            font-size: 16px;
+            font-weight: 800;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        #ambulance-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            box-shadow: 0 6px 25px rgba(255, 107, 107, 0.4);
+        }
+
+        #police-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            box-shadow: 0 6px 25px rgba(79, 172, 254, 0.4);
+        }
+
+        .emergency-btn:active {
+            transform: scale(0.92);
+        }
+
+        .emergency-btn .icon {
+            font-size: 36px;
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+        }
+
+        .emergency-btn .label {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        #status-bar {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 14px;
+            z-index: 50;
+            backdrop-filter: blur(15px);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        .status-icon {
+            font-size: 18px;
+        }
+
+        .status-pending {
+            color: #ffd93d;
+        }
+
+        .status-success {
+            color: #6bcf7f;
+        }
+
+        .status-error {
+            color: #ff6b6b;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 18px 30px;
+            border-radius: 15px;
+            font-weight: 700;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            max-width: 90%;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #recapture-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4a4a4a 0%, #5a5a5a 100%);
+            color: white;
+            border: none;
+            border-radius: 18px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        #recapture-btn:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, #5a5a5a 0%, #6a6a6a 100%);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Touch feedback ripple effect */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-animation 0.6s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 24px;
+            }
+
+            header .subtitle {
+                font-size: 11px;
+            }
+
+            .emergency-btn {
+                padding: 20px 8px;
+                font-size: 15px;
+            }
+
+            .emergency-btn .icon {
+                font-size: 32px;
+            }
+
+            .permission-content {
+                padding: 30px 20px;
+            }
+
+            .permission-icon {
+                font-size: 70px;
+            }
+
+            .permission-content h2 {
+                font-size: 24px;
+            }
+
+            #status-bar {
+                font-size: 13px;
+                padding: 10px 20px;
+                gap: 15px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .emergency-btn .label {
+                font-size: 12px;
+            }
+
+            #capture-btn {
+                font-size: 18px;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>⚡ Quick Report</h1>
+            <div class="subtitle">Instant Incident Documentation</div>
+        </header>
+
+        <div id="camera-container">
+            <div id="permission-prompt">
+                <div class="permission-content">
+                    <div class="permission-icon">📸</div>
+                    <h2>Camera Access Required</h2>
+                    <p>Quick Report needs camera access to capture incident photos with location data instantly.</p>
+                    <button id="enable-camera-btn">Enable Camera</button>
+                </div>
+            </div>
+
+            <video id="video-feed" autoplay playsinline></video>
+            <img id="captured-image" alt="Captured incident">
+            
+            <div id="fallback-message">
+                <h2>⛔ Camera Access Denied</h2>
+                <p>Please enable camera permissions in your browser settings to use Quick Report.</p>
+                <p><small>Check your browser's address bar for permission controls.</small></p>
+                <button onclick="location.reload()">Try Again</button>
+            </div>
+
+            <div id="status-bar" style="display: none;">
+                <div class="status-item" id="camera-status">
+                    <span class="status-icon status-pending">📷</span>
+                    <span>Camera</span>
+                </div>
+                <div class="status-item" id="gps-status">
+                    <span class="status-icon status-pending">📍</span>
+                    <span>GPS</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="recapture-btn" style="display: none;">🔄 Retake Photo</button>
+            
+            <button id="ai-instructions-btn" style="display: none;" disabled>
+                <span class="icon">🧠</span>
+                <span>Give AI Instructions</span>
+            </button>
+            
+            <button id="capture-btn" disabled>
+                <span class="icon">📸</span>
+                <span>Capture Incident</span>
+            </button>
+            <div id="emergency-controls">
+                <button id="ambulance-btn" class="emergency-btn">
+                    <span class="icon">🚑</span>
+                    <span class="label">Call Ambulance</span>
+                </button>
+                <button id="police-btn" class="emergency-btn">
+                    <span class="icon">🚔</span>
+                    <span class="label">Report Police</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        // Global state
+        let videoStream = null;
+        let capturedImageData = null;
+        let gpsCoordinates = null;
+
+        // DOM elements
+        const videoFeed = document.getElementById('video-feed');
+        const capturedImage = document.getElementById('captured-image');
+        const captureBtn = document.getElementById('capture-btn');
+        const recaptureBtn = document.getElementById('recapture-btn');
+        // NEW CONSTANT
+        const aiInstructionsBtn = document.getElementById('ai-instructions-btn');
+        const emergencyControls = document.getElementById('emergency-controls');
+        const ambulanceBtn = document.getElementById('ambulance-btn');
+        const policeBtn = document.getElementById('police-btn');
+        const permissionPrompt = document.getElementById('permission-prompt');
+        const enableCameraBtn = document.getElementById('enable-camera-btn');
+        const fallbackMessage = document.getElementById('fallback-message');
+        const statusBar = document.getElementById('status-bar');
+        const toast = document.getElementById('toast');
+        const cameraStatus = document.getElementById('camera-status').querySelector('.status-icon');
+        const gpsStatus = document.getElementById('gps-status').querySelector('.status-icon');
+
+        // Add ripple effect for touch feedback
+        function createRipple(event) {
+            const button = event.currentTarget;
+            const ripple = document.createElement('span');
+            const rect = button.getBoundingClientRect();
+            
+            const size = Math.max(rect.width, rect.height);
+            const x = event.clientX - rect.left - size / 2;
+            const y = event.clientY - rect.top - size / 2;
+            
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            ripple.classList.add('ripple');
+            
+            button.style.position = 'relative';
+            button.style.overflow = 'hidden';
+            button.appendChild(ripple);
+            
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        // Add touch feedback to all buttons - UPDATED LIST
+        [captureBtn, recaptureBtn, ambulanceBtn, policeBtn, enableCameraBtn, aiInstructionsBtn].forEach(btn => {
+            btn.addEventListener('touchstart', createRipple);
+        });
+
+        // Initialize camera
+        async function initCamera() {
+            try {
+                enableCameraBtn.innerHTML = '<span class="loading"></span> Requesting...';
+                enableCameraBtn.disabled = true;
+
+                console.log('Requesting camera access...');
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia not supported in this browser');
+                }
+
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+
+                console.log('Constraints:', constraints);
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('Stream obtained:', videoStream);
+                
+                videoFeed.srcObject = videoStream;
+                
+                await new Promise((resolve, reject) => {
+                    videoFeed.onloadedmetadata = () => {
+                        console.log('Video metadata loaded');
+                        videoFeed.play()
+                            .then(() => {
+                                console.log('Video playing');
+                                resolve();
+                            })
+                            .catch(reject);
+                    };
+                    videoFeed.onerror = reject;
+                    setTimeout(() => reject(new Error('Video load timeout')), 5000);
+                });
+                
+                permissionPrompt.classList.add('hidden');
+                statusBar.style.display = 'flex';
+                
+                cameraStatus.className = 'status-icon status-success';
+                cameraStatus.textContent = '✓';
+                
+                captureBtn.disabled = false;
+                showToast('Camera ready! 📸', 'success');
+                
+            } catch (error) {
+                console.error('Camera access error:', error);
+                
+                enableCameraBtn.innerHTML = 'Try Again';
+                enableCameraBtn.disabled = false;
+                
+                statusBar.style.display = 'flex';
+                cameraStatus.className = 'status-icon status-error';
+                cameraStatus.textContent = '✗';
+                
+                permissionPrompt.classList.add('hidden');
+                fallbackMessage.style.display = 'block';
+                
+                const errorMsg = document.createElement('p');
+                errorMsg.innerHTML = `<small>Error: ${error.name || 'Unknown'} - ${error.message}</small>`;
+                errorMsg.style.color = '#ffd93d';
+                if (!fallbackMessage.querySelector('small[style*="ffd93d"]')) {
+                    fallbackMessage.appendChild(errorMsg);
+                }
+                
+                if (error.name === 'NotAllowedError') {
+                    showToast('Camera permission denied. Please allow access.', 'error');
+                } else if (error.name === 'NotFoundError') {
+                    showToast('No camera found on this device.', 'error');
+                } else if (error.name === 'NotReadableError') {
+                    showToast('Camera is already in use by another app.', 'error');
+                } else {
+                    showToast('Camera error: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Initialize GPS
+        function initGPS() {
+            if (!navigator.geolocation) {
+                console.error('Geolocation not supported');
+                gpsStatus.className = 'status-icon status-error';
+                gpsStatus.textContent = '✗';
+                showToast('GPS not supported on this device', 'warning');
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    gpsCoordinates = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    };
+                    gpsStatus.className = 'status-icon status-success';
+                    gpsStatus.textContent = '✓';
+                    console.log('GPS acquired:', gpsCoordinates);
+                },
+                (error) => {
+                    console.error('GPS error:', error);
+                    gpsStatus.className = 'status-icon status-error';
+                    gpsStatus.textContent = '✗';
+                    showToast('GPS unavailable. Report will send without location.', 'warning');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        // Capture photo
+        function capturePhoto() {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoFeed.videoWidth;
+            canvas.height = videoFeed.videoHeight;
+            
+            const context = canvas.getContext('2d');
+            context.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+            
+            const timestamp = new Date();
+            const dateStr = timestamp.toLocaleDateString('en-IN', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric' 
+            });
+            const timeStr = timestamp.toLocaleTimeString('en-IN', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: true
+            });
+            
+            const overlayHeight = 120;
+            const padding = 15;
+            context.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            context.fillRect(0, canvas.height - overlayHeight, canvas.width, overlayHeight);
+            
+            context.fillStyle = '#ffffff';
+            context.font = 'bold 20px Arial';
+            context.textAlign = 'left';
+            
+            let yPos = canvas.height - overlayHeight + padding + 20;
+            
+            context.fillStyle = '#ff6b6b';
+            context.fillText('⚡ INCIDENT REPORT', padding, yPos);
+            
+            yPos += 28;
+            context.fillStyle = '#ffffff';
+            context.font = '16px Arial';
+            
+            context.fillText(`📅 ${dateStr} | 🕐 ${timeStr}`, padding, yPos);
+            
+            yPos += 24;
+            
+            if (gpsCoordinates) {
+                const lat = gpsCoordinates.latitude.toFixed(6);
+                const lng = gpsCoordinates.longitude.toFixed(6);
+                context.fillText(`📍 ${lat}, ${lng}`, padding, yPos);
+                
+                context.fillStyle = '#4facfe';
+                context.font = 'bold 14px Arial';
+                context.textAlign = 'right';
+                context.fillText(`Accuracy: ±${Math.round(gpsCoordinates.accuracy)}m`, canvas.width - padding, yPos);
+            } else {
+                context.fillStyle = '#ffd93d';
+                context.fillText('📍 GPS: Location unavailable', padding, yPos);
+            }
+            
+            capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
+            
+            capturedImage.src = capturedImageData;
+            capturedImage.style.display = 'block';
+            videoFeed.style.display = 'none';
+            
+            // UI State Change: Show Retake and AI button, hide Capture
+            captureBtn.style.display = 'none';
+            recaptureBtn.style.display = 'block';
+            aiInstructionsBtn.style.display = 'flex'; // Show the AI button
+            aiInstructionsBtn.disabled = false; // Enable it
+            emergencyControls.classList.add('active');
+            
+            showToast('Photo captured with location data! 📸', 'success');
+        }
+
+        // Recapture photo
+        function recapturePhoto() {
+            capturedImage.style.display = 'none';
+            videoFeed.style.display = 'block';
+            
+            // UI State Change: Show Capture, hide Retake and AI button
+            captureBtn.style.display = 'flex';
+            recaptureBtn.style.display = 'none';
+            aiInstructionsBtn.style.display = 'none'; // Hide the AI button
+            emergencyControls.classList.remove('active');
+            
+            capturedImageData = null;
+        }
+        
+        // NEW SECURE FUNCTION: Get AI Instructions
+        async function getAIInstructions() {
+            if (!capturedImageData) {
+                showToast('Please capture an incident photo first!', 'error');
+                return;
+            }
+
+            const originalText = aiInstructionsBtn.innerHTML;
+            // NOTE: This MUST match the port your Node.js server is running on (3000)
+            const BACKEND_URL = 'http://localhost:3000/api/ai-instructions'; 
+            
+            aiInstructionsBtn.innerHTML = '<span class="loading"></span> Analyzing...';
+            aiInstructionsBtn.disabled = true;
+            aiInstructionsBtn.style.opacity = 0.7;
+
+            // Separate the MIME type and the base64 data
+            const [dataUriPrefix, base64Image] = capturedImageData.split(',');
+            const mimeTypeMatch = dataUriPrefix.match(/:(.*?);/);
+            const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+            
+            console.log('Sending image for AI analysis to backend...');
+
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        base64Image: base64Image,
+                        mimeType: mimeType
+                    }),
+                });
+                
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Network response was not ok. Check your server logs.');
+                }
+
+                // Display the instructions received from the backend
+                showToast('🧠 AI Instructions Ready!', 'success');
+                alert('🚨 IMMEDIATE SAFETY INSTRUCTIONS:\n\n' + result.instructions);
+
+            } catch (error) {
+                console.error('AI Instructions Error:', error);
+                // Important check: If the backend is not running, this error is hit.
+                showToast(`❌ Failed to get AI instructions. Is the backend running at port 3000?`, 'error');
+            } finally {
+                aiInstructionsBtn.innerHTML = originalText;
+                aiInstructionsBtn.disabled = false;
+                aiInstructionsBtn.style.opacity = 1;
+            }
+        }
+
+        // Package and send report
+        function sendReport(action) {
+            const timestamp = new Date().toISOString();
+            
+            const reportData = {
+                action: action,
+                timestamp: timestamp,
+                image: capturedImageData ? capturedImageData.substring(0, 100) + '... [truncated]' : null,
+                imageSize: capturedImageData ? capturedImageData.length : 0,
+                gps: gpsCoordinates || { error: 'GPS unavailable' },
+                userAgent: navigator.userAgent
+            };
+
+            console.log('=====================================');
+            console.log('📋 INCIDENT REPORT SUBMITTED');
+            console.log('=====================================');
+            console.log('Action:', reportData.action);
+            console.log('Timestamp:', reportData.timestamp);
+            console.log('GPS Coordinates:', reportData.gps);
+            console.log('Image Captured:', capturedImageData ? 'Yes' : 'No');
+            if (capturedImageData) {
+                console.log('Image Size:', Math.round(reportData.imageSize / 1024), 'KB');
+            }
+            console.log('Full Report Object:', reportData);
+            console.log('=====================================');
+
+            return reportData;
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            toast.textContent = message;
+            toast.style.background = type === 'error' ? 'rgba(255, 107, 107, 0.95)' : 
+                                     type === 'warning' ? 'rgba(255, 193, 7, 0.95)' :
+                                     type === 'success' ? 'rgba(76, 175, 80, 0.95)' :
+                                     'rgba(0, 0, 0, 0.95)';
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Emergency button handlers
+        ambulanceBtn.addEventListener('click', () => {
+            sendReport('Call Ambulance');
+            showToast('🚑 Report sent. Calling Ambulance...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = 'tel:112';
+            }, 1500);
+        });
+
+        policeBtn.addEventListener('click', () => {
+            sendReport('Report Police');
+            showToast('🚔 Report sent. Calling Police...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = 'tel:100';
+            }, 1500);
+        });
+
+        // Capture button handler
+        captureBtn.addEventListener('click', capturePhoto);
+        recaptureBtn.addEventListener('click', recapturePhoto);
+        // NEW EVENT LISTENER
+        aiInstructionsBtn.addEventListener('click', getAIInstructions);
+        
+        // Enable camera button handler
+        enableCameraBtn.addEventListener('click', () => {
+            initCamera();
+            initGPS();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
