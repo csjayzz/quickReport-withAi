@@ -570,11 +570,14 @@
 
     <div id="toast"></div>
 
-    <script>
+<script>
         // Global state
         let videoStream = null;
         let capturedImageData = null;
         let gpsCoordinates = null;
+
+        // 👇 UPDATED: Define the live Render API endpoint for the main report
+        const API_ENDPOINT = 'https://quickreport-withai.onrender.com/report'; 
 
         // DOM elements
         const videoFeed = document.getElementById('video-feed');
@@ -833,8 +836,8 @@
             }
 
             const originalText = aiInstructionsBtn.innerHTML;
-            // NOTE: This MUST match the port your Node.js server is running on (3000)
-            const BACKEND_URL = 'http://localhost:3000/api/ai-instructions'; 
+            // NOTE: This is updated to the live Render URL for the AI instructions endpoint
+            const BACKEND_URL = 'https://quickreport-withai.onrender.com/api/ai-instructions'; 
             
             aiInstructionsBtn.innerHTML = '<span class="loading"></span> Analyzing...';
             aiInstructionsBtn.disabled = true;
@@ -862,7 +865,7 @@
                 const result = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(result.error || 'Network response was not ok. Check your server logs.');
+                    throw new Error(result.error || `Network error. Status: ${response.status}`);
                 }
 
                 // Display the instructions received from the backend
@@ -871,8 +874,7 @@
 
             } catch (error) {
                 console.error('AI Instructions Error:', error);
-                // Important check: If the backend is not running, this error is hit.
-                showToast(`❌ Failed to get AI instructions. Is the backend running at port 3000?`, 'error');
+                showToast(`❌ Failed to get AI instructions. Error: ${error.message}`, 'error');
             } finally {
                 aiInstructionsBtn.innerHTML = originalText;
                 aiInstructionsBtn.disabled = false;
@@ -880,33 +882,70 @@
             }
         }
 
-        // Package and send report
+        // 👇 UPDATED: Package and send report (uses the fetch API now)
         function sendReport(action) {
             const timestamp = new Date().toISOString();
             
+            // 1. Prepare Data Payload
             const reportData = {
                 action: action,
                 timestamp: timestamp,
-                image: capturedImageData ? capturedImageData.substring(0, 100) + '... [truncated]' : null,
-                imageSize: capturedImageData ? capturedImageData.length : 0,
+                // Send the FULL image data to the backend
+                image: capturedImageData, 
                 gps: gpsCoordinates || { error: 'GPS unavailable' },
                 userAgent: navigator.userAgent
             };
+            
+            // 2. Disable buttons and show loading indicator
+            const ambulanceBtn = document.getElementById('ambulance-btn');
+            const policeBtn = document.getElementById('police-btn');
 
-            console.log('=====================================');
-            console.log('📋 INCIDENT REPORT SUBMITTED');
-            console.log('=====================================');
-            console.log('Action:', reportData.action);
-            console.log('Timestamp:', reportData.timestamp);
-            console.log('GPS Coordinates:', reportData.gps);
-            console.log('Image Captured:', capturedImageData ? 'Yes' : 'No');
-            if (capturedImageData) {
-                console.log('Image Size:', Math.round(reportData.imageSize / 1024), 'KB');
+            ambulanceBtn.disabled = true;
+            policeBtn.disabled = true;
+
+            // Store original text for restoration
+            const originalAmbulanceText = ambulanceBtn.innerHTML;
+            const originalPoliceText = policeBtn.innerHTML;
+
+            if (action === 'Call Ambulance') {
+                ambulanceBtn.innerHTML = '<span class="loading"></span> Sending...';
+            } else if (action === 'Report Police') {
+                policeBtn.innerHTML = '<span class="loading"></span> Sending...';
             }
-            console.log('Full Report Object:', reportData);
-            console.log('=====================================');
+            
 
-            return reportData;
+            // 3. Send Data to Render API
+            fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Keep-Alive': 'timeout=5, max=1000' 
+                },
+                body: JSON.stringify(reportData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status} - API response not OK`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('API Success:', data);
+                showToast('Report Data Sent Successfully to Backend! ✅', 'success');
+            })
+            .catch((error) => {
+                console.error('API Error:', error);
+                showToast(`Report failed to send! Error: ${error.message} ⚠️`, 'error');
+            })
+            .finally(() => {
+                // 4. Re-enable buttons, restore text
+                ambulanceBtn.innerHTML = originalAmbulanceText;
+                policeBtn.innerHTML = originalPoliceText;
+                ambulanceBtn.disabled = false;
+                policeBtn.disabled = false;
+            });
+
+            console.log(`Attempting to send report via API to: ${API_ENDPOINT}`);
         }
 
         // Show toast notification
@@ -960,6 +999,9 @@
                 videoStream.getTracks().forEach(track => track.stop());
             }
         });
+
+        // Initial calls
+        // initGPS(); // You can enable this to try and get GPS immediately on load if permissions allow
     </script>
 </body>
 </html>
